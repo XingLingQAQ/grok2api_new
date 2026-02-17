@@ -27,12 +27,16 @@ class RequestLog:
 class RequestLogger:
     """请求日志管理器"""
 
-    MAX_LOGS = 1000  # 最多保留1000条
-
     def __init__(self):
         self.logs: List[RequestLog] = []
         self.initialized = False
         self._counter = 0
+
+    @property
+    def max_logs(self) -> int:
+        """从配置读取日志上限"""
+        from app.core.config import settings
+        return settings.max_log_entries
 
     async def init(self):
         """初始化"""
@@ -48,11 +52,11 @@ class RequestLogger:
                 pass
 
         # 只保留最新的
-        if len(self.logs) > self.MAX_LOGS:
-            self.logs = self.logs[-self.MAX_LOGS:]
+        if len(self.logs) > self.max_logs:
+            self.logs = self.logs[-self.max_logs:]
 
         self.initialized = True
-        logger.info(f"[RequestLogger] 已加载 {len(self.logs)} 条日志")
+        logger.info(f"[RequestLogger] 已加载 {len(self.logs)} 条日志（上限 {self.max_logs}）")
 
     async def log(
         self,
@@ -101,8 +105,8 @@ class RequestLogger:
         self.logs.append(log_entry)
 
         # 超过最大数量时删除旧的
-        if len(self.logs) > self.MAX_LOGS:
-            self.logs = self.logs[-self.MAX_LOGS:]
+        if len(self.logs) > self.max_logs:
+            self.logs = self.logs[-self.max_logs:]
 
     async def save(self):
         """保存日志"""
