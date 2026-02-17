@@ -33,7 +33,7 @@ DEFAULTS = {
     "storage_type": "json",
     "storage_path": "data",
 
-    "conversation_ttl": 600,
+    "conversation_ttl": 72000,
     "max_conversations_per_token": 100,
 
     "token_file": "data/tokens.json",
