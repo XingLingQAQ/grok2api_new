@@ -1,5 +1,6 @@
 """Grok API 客户端 - 支持真实上下文的多轮对话"""
 
+import json
 import re
 import uuid
 import orjson
@@ -811,18 +812,96 @@ class GrokClient:
                                         token_text = result.get("token")
                                         is_thinking = result.get("isThinking", is_thinking)
 
-                                    # 搜索过程：tool_usage_card 包含搜索查询
+                                    # 工具调用过程：tool_usage_card 包含各种工具（搜索/代码/浏览/专家协商）
                                     if message_tag == "tool_usage_card":
                                         if token_text and show_thinking and settings.show_search:
-                                            query_match = re.search(r'"query"\s*:\s*"([^"]*)"', token_text)
-                                            if query_match:
+                                            rollout_id = response_data.get("rolloutId", "")
+                                            prefix = f"[{rollout_id}] " if rollout_id else ""
+                                            # 提取工具名和参数
+                                            tool_match = re.search(r'<xai:tool_name>(\w+)</xai:tool_name>', token_text)
+                                            tool_name = tool_match.group(1) if tool_match else ""
+                                            args_match = re.search(r'<!\[CDATA\[(.+?)\]\]>', token_text, re.DOTALL)
+                                            tool_args = {}
+                                            if args_match:
+                                                try:
+                                                    tool_args = json.loads(args_match.group(1))
+                                                except:
+                                                    pass
+
+                                            if not think_opened:
+                                                yield "<think>\n"
+                                                think_opened = True
+
+                                            if tool_name == "web_search":
+                                                query = tool_args.get("query", "")
+                                                if query:
+                                                    yield f"{prefix}🔍 搜索: {query}\n"
+                                            elif tool_name == "code_execution":
+                                                code = tool_args.get("code", "")
+                                                if code:
+                                                    # 只显示前两行代码预览
+                                                    lines_preview = code.strip().split('\n')[:2]
+                                                    preview = lines_preview[0]
+                                                    if len(lines_preview) > 1:
+                                                        preview += " ..."
+                                                    yield f"{prefix}💻 执行代码: {preview}\n"
+                                            elif tool_name == "browse_page":
+                                                url = tool_args.get("url", "")
+                                                if url:
+                                                    yield f"{prefix}🌐 浏览: {url}\n"
+                                            elif tool_name == "chatroom_send":
+                                                to = tool_args.get("to", "")
+                                                msg = tool_args.get("message", "")
+                                                if msg:
+                                                    # 截取前100字符
+                                                    short_msg = msg[:100] + ("..." if len(msg) > 100 else "")
+                                                    yield f"{prefix}💬 → {to}: {short_msg}\n"
+                                            else:
+                                                yield f"{prefix}🔧 {tool_name}\n"
+                                        continue
+
+                                    # 工具执行结果：raw_function_result
+                                    if message_tag == "raw_function_result":
+                                        if show_thinking and settings.show_search:
+                                            rollout_id = response_data.get("rolloutId", "")
+                                            prefix = f"[{rollout_id}] " if rollout_id else ""
+
+                                            # 搜索结果
+                                            if web_results := response_data.get("webSearchResults"):
+                                                if isinstance(web_results, dict):
+                                                    results_list = web_results.get("results", [])
+                                                elif isinstance(web_results, list):
+                                                    results_list = web_results
+                                                else:
+                                                    results_list = []
+                                                if results_list:
+                                                    if not think_opened:
+                                                        yield "<think>\n"
+                                                        think_opened = True
+                                                    yield f"{prefix}📄 找到 {len(results_list)} 条结果\n"
+
+                                            # 代码执行结果
+                                            if code_result := response_data.get("codeExecutionResult"):
                                                 if not think_opened:
                                                     yield "<think>\n"
                                                     think_opened = True
-                                                yield f"🔍 搜索: {query_match.group(1)}\n"
+                                                exit_code = code_result.get("exitCode", -1)
+                                                if exit_code == 0:
+                                                    stdout = code_result.get("stdout", "").strip()
+                                                    if stdout:
+                                                        # 截取前200字符
+                                                        short_out = stdout[:200] + ("..." if len(stdout) > 200 else "")
+                                                        yield f"{prefix}✅ 执行成功: {short_out}\n"
+                                                    else:
+                                                        yield f"{prefix}✅ 执行成功\n"
+                                                else:
+                                                    stderr = code_result.get("stderr", "").strip()
+                                                    # 只取最后一行错误信息
+                                                    last_line = stderr.split('\n')[-1] if stderr else "未知错误"
+                                                    yield f"{prefix}❌ 执行失败: {last_line}\n"
                                         continue
 
-                                    # 搜索结果
+                                    # 搜索结果（无 messageTag 时的兼容路径）
                                     if web_results := response_data.get("webSearchResults"):
                                         if show_thinking and settings.show_search:
                                             if isinstance(web_results, dict):
@@ -985,16 +1064,77 @@ class GrokClient:
                                 is_thinking = response_data.get("isThinking", False)
                                 message_tag = response_data.get("messageTag", "")
 
-                                # 搜索过程：提取查询关键词
+                                # 工具调用过程
                                 if message_tag == "tool_usage_card":
                                     if show_thinking and settings.show_search:
                                         if token_text := response_data.get("token"):
-                                            query_match = re.search(r'"query"\s*:\s*"([^"]*)"', token_text)
-                                            if query_match:
-                                                thinking_content += f"🔍 搜索: {query_match.group(1)}\n"
+                                            rollout_id = response_data.get("rolloutId", "")
+                                            prefix = f"[{rollout_id}] " if rollout_id else ""
+                                            tool_match = re.search(r'<xai:tool_name>(\w+)</xai:tool_name>', token_text)
+                                            tool_name = tool_match.group(1) if tool_match else ""
+                                            args_match = re.search(r'<!\[CDATA\[(.+?)\]\]>', token_text, re.DOTALL)
+                                            tool_args = {}
+                                            if args_match:
+                                                try:
+                                                    tool_args = json.loads(args_match.group(1))
+                                                except:
+                                                    pass
+                                            if tool_name == "web_search":
+                                                query = tool_args.get("query", "")
+                                                if query:
+                                                    thinking_content += f"{prefix}🔍 搜索: {query}\n"
+                                            elif tool_name == "code_execution":
+                                                code = tool_args.get("code", "")
+                                                if code:
+                                                    lines_preview = code.strip().split('\n')[:2]
+                                                    preview = lines_preview[0]
+                                                    if len(lines_preview) > 1:
+                                                        preview += " ..."
+                                                    thinking_content += f"{prefix}💻 执行代码: {preview}\n"
+                                            elif tool_name == "browse_page":
+                                                url = tool_args.get("url", "")
+                                                if url:
+                                                    thinking_content += f"{prefix}🌐 浏览: {url}\n"
+                                            elif tool_name == "chatroom_send":
+                                                to = tool_args.get("to", "")
+                                                msg = tool_args.get("message", "")
+                                                if msg:
+                                                    short_msg = msg[:100] + ("..." if len(msg) > 100 else "")
+                                                    thinking_content += f"{prefix}💬 → {to}: {short_msg}\n"
+                                            else:
+                                                thinking_content += f"{prefix}🔧 {tool_name}\n"
                                     continue
 
-                                # 搜索结果
+                                # 工具执行结果
+                                if message_tag == "raw_function_result":
+                                    if show_thinking and settings.show_search:
+                                        rollout_id = response_data.get("rolloutId", "")
+                                        prefix = f"[{rollout_id}] " if rollout_id else ""
+                                        if web_results := response_data.get("webSearchResults"):
+                                            if isinstance(web_results, dict):
+                                                results_list = web_results.get("results", [])
+                                            elif isinstance(web_results, list):
+                                                results_list = web_results
+                                            else:
+                                                results_list = []
+                                            if results_list:
+                                                thinking_content += f"{prefix}📄 找到 {len(results_list)} 条结果\n"
+                                        if code_result := response_data.get("codeExecutionResult"):
+                                            exit_code = code_result.get("exitCode", -1)
+                                            if exit_code == 0:
+                                                stdout = code_result.get("stdout", "").strip()
+                                                if stdout:
+                                                    short_out = stdout[:200] + ("..." if len(stdout) > 200 else "")
+                                                    thinking_content += f"{prefix}✅ 执行成功: {short_out}\n"
+                                                else:
+                                                    thinking_content += f"{prefix}✅ 执行成功\n"
+                                            else:
+                                                stderr = code_result.get("stderr", "").strip()
+                                                last_line = stderr.split('\n')[-1] if stderr else "未知错误"
+                                                thinking_content += f"{prefix}❌ 执行失败: {last_line}\n"
+                                    continue
+
+                                # 搜索结果（无 messageTag 时的兼容路径）
                                 if web_results := response_data.get("webSearchResults"):
                                     if show_thinking and settings.show_search:
                                         if isinstance(web_results, dict):

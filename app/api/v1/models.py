@@ -30,7 +30,7 @@ MODEL_REGISTRY = {
         "Grok", "Grok",
     ),
     "grok-4.2": (
-        "grok-4-1-thinking-1129", "MODEL_MODE_GROK_420",
+        "grok-420", "MODEL_MODE_GROK_420",
         "Grok 4.2", "Standard Grok 4.2 model",
     ),
     "grok-expert": (
