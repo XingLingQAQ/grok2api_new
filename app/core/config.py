@@ -16,8 +16,6 @@ DEFAULTS = {
     "debug": False,
     "log_level": "INFO",
 
-    "api_key": None,
-
     "admin_username": "admin",
     "admin_password": "admin",
 
@@ -30,13 +28,10 @@ DEFAULTS = {
     "request_timeout": 120,
     "stream_timeout": 600,
 
-    "storage_type": "json",
     "storage_path": "data",
 
     "conversation_ttl": 72000,
     "max_conversations_per_token": 100,
-
-    "token_file": "data/tokens.json",
 
     "max_log_entries": 1000,
     "max_image_cache_mb": 500,
