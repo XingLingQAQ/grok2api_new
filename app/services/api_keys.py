@@ -139,6 +139,7 @@ class ApiKeyManager:
         if key in self.keys:
             self.keys[key].last_used = time.time()
             self.keys[key].request_count += 1
+            await self._save()
 
     def list_keys(self) -> List[ApiKeyInfo]:
         """列出所有API Key"""
