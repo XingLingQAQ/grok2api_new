@@ -285,17 +285,6 @@ GET /health
 
 ## Changelog
 
-### 2026-02-21
-
-- **接口加固**：增强 OpenAI 请求模型校验（角色约束、空内容拦截、关键字段最小长度约束）。
-- **会话一致性**：修复会话清理时哈希索引残留问题，新增 `clear_all()` 统一清理入口。
-- **可观测性**：新增 `X-Request-ID` 响应头，错误响应附带 `request_id` 便于排障。
-- **体验增强**：`/v1/responses` 统一使用请求体 `conversation_id` 续接会话，缺失时返回 `missing_conversation_id`。
-- **流式续接优化**：新会话流式首包返回稳定 `conversation_id`，可立即用于下一轮续接。
-- **性能优化**：批量创建 API Key 改为单次落盘；请求日志分页读取改为切片策略。
-- **管理台优化**：后台与登录页错误提示解析增强，避免出现 `[object Object]`。
-- **死代码清理**：删除无引用文件 `app/services/grok_client_patch.py`，并移除未使用方法。
-- **部署能力**：新增 `Dockerfile`、`docker-compose.yml` 与 `.dockerignore`，支持容器化部署。
 
 ## 项目结构
 
