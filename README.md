@@ -11,6 +11,7 @@ Grok 逆向代理，将 Grok 网页端 API 转换为 OpenAI 兼容格式。支�
 - **跨账号续接** — 通过 Share + Clone 机制实现不同账号无缝续接同一会话
 - **账号类型检测** — 自动识别 Free / Super 会员账号
 - **流式响应** — 支持 SSE 流式输出
+- **可追踪响应** — 每次请求返回 `X-Request-ID`，便于日志排障与问题定位
 - **思考过程** — 支持 Thinking 模型的推理过程展示（`<think>` 标签）
 - **搜索过程** — 实时展示 Grok 搜索查询和结果数量
 - **图片支持** — 支持图片上传和图片生成结果缓存
@@ -43,6 +44,41 @@ chmod +x install.sh start.sh
 install.bat
 start.bat
 ```
+
+### Docker 部署
+
+使用 Docker Compose（推荐）：
+
+```bash
+# 构建并后台启动
+docker compose up -d --build
+
+# 查看日志
+docker compose logs -f
+
+# 停止并删除容器
+docker compose down
+```
+
+使用 Docker 命令：
+
+```bash
+# 构建镜像
+docker build -t grok2api:latest .
+
+# 运行容器（挂载数据和日志目录）
+docker run -d \
+  --name grok2api \
+  -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/app/logs \
+  --restart unless-stopped \
+  grok2api:latest
+```
+
+说明：
+- 首次启动会自动初始化 `data/` 和 `logs/`。
+- 已在 `docker-compose.yml` 中默认映射 `./data` 与 `./logs`，用于持久化。
 
 首次启动自动生成 `data/` 和 `logs/` 目录及所有必要文件，无需手动创建。
 
@@ -172,6 +208,31 @@ Content-Type: application/json
 
 支持 `conversation_id` 参数或 `X-Conversation-ID` 请求头续接多轮对话。
 
+响应头：
+- `X-Request-ID`：请求追踪 ID
+- `X-Conversation-ID`：当前会话 ID（存在会话时返回）
+
+在流式（SSE）且首次新建会话时，首个 chunk 也会携带稳定 `conversation_id`，可立即用于下一轮续接。
+
+### 继续对话
+
+```http
+POST /v1/responses
+Authorization: Bearer sk-test
+Content-Type: application/json
+X-Conversation-ID: conv-xxx
+
+{
+  "model": "grok-4.2",
+  "message": "继续讲下一步",
+  "stream": false
+}
+```
+
+说明：
+- `conversation_id` 可通过请求体 `conversation_id` 传入，也可通过 `X-Conversation-ID` 请求头传入（请求头优先）。
+- 若两者都缺失，会返回 `400`，错误码 `missing_conversation_id`，并附带 `request_id` 便于排查。
+
 ### 模型列表
 
 ```http
@@ -183,6 +244,15 @@ GET /v1/models
 ```http
 GET /health
 ```
+
+### 错误追踪
+
+错误响应会尽量包含：
+- `detail.error.code`：错误码
+- `detail.error.message`：错误信息
+- `detail.error.request_id`：请求追踪 ID（服务端异常或关键校验失败时）
+
+同时响应头会返回 `X-Request-ID`，用于串联客户端日志与服务端日志。
 
 ## 管理后台
 
@@ -198,11 +268,28 @@ GET /health
 | 系统配置 | 热修改运行时参数（分组卡片式界面） |
 | 图片缓存 | 查看和清理缓存的图片（自动清理） |
 
+## Changelog
+
+### 2026-02-21
+
+- **接口加固**：增强 OpenAI 请求模型校验（角色约束、空内容拦截、关键字段最小长度约束）。
+- **会话一致性**：修复会话清理时哈希索引残留问题，新增 `clear_all()` 统一清理入口。
+- **可观测性**：新增 `X-Request-ID` 与 `X-Conversation-ID` 响应头，错误响应附带 `request_id` 便于排障。
+- **体验增强**：`/v1/responses` 支持从 `X-Conversation-ID` 读取会话 ID（优先级高于 body），缺失时返回 `missing_conversation_id`。
+- **流式续接优化**：新会话流式首包返回稳定 `conversation_id`，可立即用于下一轮续接。
+- **性能优化**：批量创建 API Key 改为单次落盘；请求日志分页读取改为切片策略。
+- **管理台优化**：后台与登录页错误提示解析增强，避免出现 `[object Object]`。
+- **死代码清理**：删除无引用文件 `app/services/grok_client_patch.py`，并移除未使用方法。
+- **部署能力**：新增 `Dockerfile`、`docker-compose.yml` 与 `.dockerignore`，支持容器化部署。
+
 ## 项目结构
 
 ```
 ├── main.py                          # 入口
 ├── requirements.txt                 # 依赖
+├── Dockerfile                       # Docker 镜像构建
+├── docker-compose.yml               # Docker Compose 部署
+├── .dockerignore                    # Docker 构建忽略
 ├── app/
 │   ├── api/
 │   │   ├── admin.py                 # 管理后台 API
