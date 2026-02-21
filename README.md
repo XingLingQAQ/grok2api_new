@@ -60,6 +60,21 @@ docker compose logs -f
 docker compose down
 ```
 
+直接拉取仓库自动构建镜像（GHCR）：
+
+```bash
+# 镜像地址（按当前仓库 owner/repo）
+docker pull ghcr.io/tomiya233/grok2api_new:latest
+
+docker run -d \
+  --name grok2api \
+  -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/app/logs \
+  --restart unless-stopped \
+  ghcr.io/tomiya233/grok2api_new:latest
+```
+
 使用 Docker 命令：
 
 ```bash
@@ -79,6 +94,7 @@ docker run -d \
 说明：
 - 首次启动会自动初始化 `data/` 和 `logs/`。
 - 已在 `docker-compose.yml` 中默认映射 `./data` 与 `./logs`，用于持久化。
+- 仓库已包含 GitHub Actions 工作流，`push main` 后会自动发布镜像到 `ghcr.io/<owner>/<repo>:latest`。
 
 首次启动自动生成 `data/` 和 `logs/` 目录及所有必要文件，无需手动创建。
 
