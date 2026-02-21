@@ -12,6 +12,7 @@ from app.core.logger import logger
 @dataclass
 class ApiKeyInfo:
     """API Key信息"""
+
     key: str
     name: str
     enabled: bool
@@ -41,7 +42,7 @@ class ApiKeyManager:
                 enabled=info.get("enabled", True),
                 created_at=info.get("created_at", time.time()),
                 last_used=info.get("last_used", 0),
-                request_count=info.get("request_count", 0)
+                request_count=info.get("request_count", 0),
             )
 
         self.initialized = True
@@ -56,7 +57,7 @@ class ApiKeyManager:
                 enabled=True,
                 created_at=time.time(),
                 last_used=0,
-                request_count=0
+                request_count=0,
             )
             await self._save()
             logger.info(f"[ApiKeyManager] 已创建默认 API Key: {default_key}")
@@ -82,7 +83,7 @@ class ApiKeyManager:
             enabled=True,
             created_at=time.time(),
             last_used=0,
-            request_count=0
+            request_count=0,
         )
         self.keys[key] = info
         await self._save()
@@ -92,20 +93,26 @@ class ApiKeyManager:
     async def create_keys_batch(self, count: int, prefix: str = "") -> List[ApiKeyInfo]:
         """批量创建API Key"""
         created = []
+        if count <= 0:
+            return created
+
+        now = time.time()
         for i in range(count):
             name = f"{prefix}{i + 1}" if prefix else ""
-            info = await self.create_key(name)
+            key = self.generate_key()
+            info = ApiKeyInfo(
+                key=key,
+                name=name,
+                enabled=True,
+                created_at=now,
+                last_used=0,
+                request_count=0,
+            )
+            self.keys[key] = info
             created.append(info)
+        await self._save()
+        logger.info(f"[ApiKeyManager] 批量创建 {len(created)} 个API Key")
         return created
-
-    async def delete_key(self, key: str) -> bool:
-        """删除API Key"""
-        if key in self.keys:
-            del self.keys[key]
-            await self._save()
-            logger.info(f"[ApiKeyManager] 删除API Key: {key[:16]}...")
-            return True
-        return False
 
     async def delete_keys_batch(self, keys: List[str]) -> int:
         """批量删除API Key"""
@@ -120,10 +127,7 @@ class ApiKeyManager:
         return deleted
 
     async def update_key(
-        self,
-        key: str,
-        name: Optional[str] = None,
-        enabled: Optional[bool] = None
+        self, key: str, name: Optional[str] = None, enabled: Optional[bool] = None
     ) -> bool:
         """更新API Key"""
         if key not in self.keys:
@@ -168,7 +172,7 @@ class ApiKeyManager:
             "total_keys": total,
             "enabled_keys": enabled,
             "disabled_keys": total - enabled,
-            "total_requests": total_requests
+            "total_requests": total_requests,
         }
 
 

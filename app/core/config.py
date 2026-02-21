@@ -15,28 +15,20 @@ DEFAULTS = {
     "app_version": "2.0.0",
     "debug": False,
     "log_level": "INFO",
-
     "admin_username": "admin",
     "admin_password": "admin",
-
     "grok_base_url": "https://grok.com",
     "grok_api_endpoint": "https://grok.com/rest/app-chat",
-
     "proxy_url": None,
     "base_url": "",
-
     "request_timeout": 120,
     "stream_timeout": 600,
-
     "storage_path": "data",
-
     "conversation_ttl": 72000,
     "max_conversations_per_token": 100,
-
     "max_log_entries": 1000,
     "max_image_cache_mb": 500,
     "max_log_file_mb": 10,
-
     "show_thinking": True,
     "show_search": True,
 }
@@ -88,31 +80,102 @@ class RuntimeConfig:
     # 可以在运行时修改的配置项（分组）
     EDITABLE_KEYS = {
         # 后台账号配置
-        "admin_username": {"type": "string", "label": "管理员账号", "desc": "后台登录用户名", "group": "auth"},
-        "admin_password": {"type": "password", "label": "管理员密码", "desc": "后台登录密码", "group": "auth"},
-
+        "admin_username": {
+            "type": "string",
+            "label": "管理员账号",
+            "desc": "后台登录用户名",
+            "group": "auth",
+        },
+        "admin_password": {
+            "type": "password",
+            "label": "管理员密码",
+            "desc": "后台登录密码",
+            "group": "auth",
+        },
         # 网络配置
-        "proxy_url": {"type": "string", "label": "代理地址", "desc": "HTTP 代理服务器地址，如 http://127.0.0.1:7890", "group": "network"},
-        "request_timeout": {"type": "int", "label": "请求超时", "desc": "普通请求超时时间（秒）", "group": "network"},
-        "stream_timeout": {"type": "int", "label": "流式超时", "desc": "流式请求总超时时间（秒）", "group": "network"},
-
+        "proxy_url": {
+            "type": "string",
+            "label": "代理地址",
+            "desc": "HTTP 代理服务器地址，如 http://127.0.0.1:7890",
+            "group": "network",
+        },
+        "request_timeout": {
+            "type": "int",
+            "label": "请求超时",
+            "desc": "普通请求超时时间（秒）",
+            "group": "network",
+        },
+        "stream_timeout": {
+            "type": "int",
+            "label": "流式超时",
+            "desc": "流式请求总超时时间（秒）",
+            "group": "network",
+        },
         # 图片配置
-        "base_url": {"type": "string", "label": "图片服务地址", "desc": "图片缓存服务的外部访问地址，如 http://your-server:8000，留空则使用相对路径", "group": "image"},
-
+        "base_url": {
+            "type": "string",
+            "label": "图片服务地址",
+            "desc": "图片缓存服务的外部访问地址，如 http://your-server:8000，留空则使用相对路径",
+            "group": "image",
+        },
         # 会话配置
-        "conversation_ttl": {"type": "int", "label": "会话保留时间", "desc": "会话数据保留时间（秒），默认72000（20小时）", "group": "conversation"},
-        "max_conversations_per_token": {"type": "int", "label": "最大会话数", "desc": "每个 Token 最多保留的会话数", "group": "conversation"},
-
+        "conversation_ttl": {
+            "type": "int",
+            "label": "会话保留时间",
+            "desc": "会话数据保留时间（秒），默认72000（20小时）",
+            "group": "conversation",
+        },
+        "max_conversations_per_token": {
+            "type": "int",
+            "label": "最大会话数",
+            "desc": "每个 Token 最多保留的会话数",
+            "group": "conversation",
+        },
         # 系统配置
-        "log_level": {"type": "select", "label": "日志级别", "desc": "日志输出级别", "options": ["DEBUG", "INFO", "WARNING", "ERROR"], "group": "system"},
-        "debug": {"type": "bool", "label": "调试模式", "desc": "启用调试模式", "group": "system"},
-        "max_log_entries": {"type": "int", "label": "请求日志上限", "desc": "最多保留的请求日志条数，超出自动清理旧日志", "group": "system"},
-        "max_log_file_mb": {"type": "int", "label": "日志文件上限(MB)", "desc": "单个日志文件最大大小，超出自动清空", "group": "system"},
-        "max_image_cache_mb": {"type": "int", "label": "图片缓存上限(MB)", "desc": "图片缓存最大占用空间，超出自动清理最旧的图片", "group": "image"},
-
+        "log_level": {
+            "type": "select",
+            "label": "日志级别",
+            "desc": "日志输出级别",
+            "options": ["DEBUG", "INFO", "WARNING", "ERROR"],
+            "group": "system",
+        },
+        "debug": {
+            "type": "bool",
+            "label": "调试模式",
+            "desc": "启用调试模式",
+            "group": "system",
+        },
+        "max_log_entries": {
+            "type": "int",
+            "label": "请求日志上限",
+            "desc": "最多保留的请求日志条数，超出自动清理旧日志",
+            "group": "system",
+        },
+        "max_log_file_mb": {
+            "type": "int",
+            "label": "日志文件上限(MB)",
+            "desc": "单个日志文件最大大小，超出自动清空",
+            "group": "system",
+        },
+        "max_image_cache_mb": {
+            "type": "int",
+            "label": "图片缓存上限(MB)",
+            "desc": "图片缓存最大占用空间，超出自动清理最旧的图片",
+            "group": "image",
+        },
         # 输出控制
-        "show_thinking": {"type": "bool", "label": "显示思考过程", "desc": "在响应中包含模型的思考过程（<think>标签）", "group": "output"},
-        "show_search": {"type": "bool", "label": "显示搜索过程", "desc": "在思考过程中展示搜索查询和结果数量", "group": "output"},
+        "show_thinking": {
+            "type": "bool",
+            "label": "显示思考过程",
+            "desc": "在响应中包含模型的思考过程（<think>标签）",
+            "group": "output",
+        },
+        "show_search": {
+            "type": "bool",
+            "label": "显示搜索过程",
+            "desc": "在思考过程中展示搜索查询和结果数量",
+            "group": "output",
+        },
     }
 
     # 配置分组
@@ -127,6 +190,21 @@ class RuntimeConfig:
 
     def __init__(self):
         self.initialized = False
+
+    @staticmethod
+    def _parse_bool(value: Any) -> bool:
+        """安全解析布尔值，兼容字符串/数字输入。"""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "off", ""}:
+                return False
+        raise ValueError("invalid boolean value")
 
     async def init(self):
         """初始化"""
@@ -149,7 +227,7 @@ class RuntimeConfig:
             if key_info["type"] == "int":
                 value = int(value)
             elif key_info["type"] == "bool":
-                value = bool(value)
+                value = self._parse_bool(value)
             elif key_info["type"] in ("string", "password"):
                 value = str(value) if value else None
         except (ValueError, TypeError):
@@ -187,10 +265,7 @@ class RuntimeConfig:
             # 密码类型不返回明文，但标识是否已设置
             if info["type"] == "password":
                 value = "******" if value else ""
-            schema[key] = {
-                **info,
-                "value": value
-            }
+            schema[key] = {**info, "value": value}
         return schema
 
     def get_groups(self) -> Dict[str, dict]:

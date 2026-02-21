@@ -13,10 +13,14 @@ from app.services.headers import get_dynamic_headers
 
 # MIME 类型映射
 MIME_TYPES = {
-    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-    '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp',
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
 }
-DEFAULT_MIME = 'image/jpeg'
+DEFAULT_MIME = "image/jpeg"
 ASSETS_URL = "https://assets.grok.com"
 
 
@@ -31,21 +35,25 @@ class ImageCache:
 
     def _get_path(self, file_path: str) -> Path:
         """转换文件路径为缓存路径"""
-        return self.cache_dir / file_path.lstrip('/').replace('/', '-')
+        return self.cache_dir / file_path.lstrip("/").replace("/", "-")
 
     def _build_headers(self, file_path: str, auth_token: str) -> dict:
         """构建请求头"""
         headers = get_dynamic_headers(pathname=file_path)
-        headers.update({
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "same-site",
-            "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
-            "Referer": "https://grok.com/",
-            "Cookie": auth_token if auth_token.startswith("sso=") else f"sso={auth_token}"
-        })
+        headers.update(
+            {
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "same-site",
+                "Sec-Fetch-User": "?1",
+                "Upgrade-Insecure-Requests": "1",
+                "Referer": "https://grok.com/",
+                "Cookie": auth_token
+                if auth_token.startswith("sso=")
+                else f"sso={auth_token}",
+            }
+        )
         return headers
 
     async def download(self, file_path: str, auth_token: str) -> Optional[Path]:
@@ -58,7 +66,11 @@ class ImageCache:
         MAX_RETRY = 3
         for retry in range(MAX_RETRY):
             try:
-                proxies = {"http": settings.proxy_url, "https": settings.proxy_url} if settings.proxy_url else None
+                proxies = (
+                    {"http": settings.proxy_url, "https": settings.proxy_url}
+                    if settings.proxy_url
+                    else None
+                )
 
                 async with AsyncSession(impersonate="chrome120") as session:
                     url = f"{ASSETS_URL}{file_path}"
@@ -69,17 +81,21 @@ class ImageCache:
                         headers=self._build_headers(file_path, auth_token),
                         proxies=proxies,
                         timeout=self.timeout,
-                        allow_redirects=True
+                        allow_redirects=True,
                     )
 
                     if response.status_code == 200:
-                        await asyncio.to_thread(cache_path.write_bytes, response.content)
+                        await asyncio.to_thread(
+                            cache_path.write_bytes, response.content
+                        )
                         logger.info(f"[ImageCache] 缓存成功: {cache_path.name}")
                         # 异步清理
                         asyncio.create_task(self._cleanup())
                         return cache_path
                     elif response.status_code in [401, 403, 429]:
-                        logger.warning(f"[ImageCache] 下载失败 {response.status_code}，重试 {retry + 1}/{MAX_RETRY}")
+                        logger.warning(
+                            f"[ImageCache] 下载失败 {response.status_code}，重试 {retry + 1}/{MAX_RETRY}"
+                        )
                         await asyncio.sleep(0.5 * (retry + 1))
                     else:
                         logger.error(f"[ImageCache] 下载失败: {response.status_code}")
@@ -110,13 +126,6 @@ class ImageCache:
             logger.error(f"[ImageCache] 转换失败: {e}")
             return None
 
-    async def download_base64(self, file_path: str, auth_token: str) -> Optional[str]:
-        """下载并转为 base64"""
-        cache_path = await self.download(file_path, auth_token)
-        if not cache_path:
-            return None
-        return self.to_base64(cache_path)
-
     async def _cleanup(self):
         """清理超限缓存"""
         if self._cleanup_lock.locked():
@@ -127,14 +136,19 @@ class ImageCache:
                 max_mb = settings.max_image_cache_mb
                 max_bytes = max_mb * 1024 * 1024
 
-                files = [(f, (s := f.stat()).st_size, s.st_mtime)
-                         for f in self.cache_dir.glob("*") if f.is_file()]
+                files = [
+                    (f, (s := f.stat()).st_size, s.st_mtime)
+                    for f in self.cache_dir.glob("*")
+                    if f.is_file()
+                ]
                 total = sum(size for _, size, _ in files)
 
                 if total <= max_bytes:
                     return
 
-                logger.info(f"[ImageCache] 清理缓存 {total / 1024 / 1024:.1f}MB -> {max_mb}MB")
+                logger.info(
+                    f"[ImageCache] 清理缓存 {total / 1024 / 1024:.1f}MB -> {max_mb}MB"
+                )
 
                 for path, size, _ in sorted(files, key=lambda x: x[2]):
                     if total <= max_bytes:
@@ -152,14 +166,16 @@ class ImageCache:
             for file_path in self.cache_dir.glob("*"):
                 if file_path.is_file():
                     stat = file_path.stat()
-                    files.append({
-                        "name": file_path.name,
-                        "size": stat.st_size,
-                        "size_mb": round(stat.st_size / 1024 / 1024, 2),
-                        "created": stat.st_ctime,
-                        "modified": stat.st_mtime,
-                        "url": f"/images/{file_path.name}"
-                    })
+                    files.append(
+                        {
+                            "name": file_path.name,
+                            "size": stat.st_size,
+                            "size_mb": round(stat.st_size / 1024 / 1024, 2),
+                            "created": stat.st_ctime,
+                            "modified": stat.st_mtime,
+                            "url": f"/images/{file_path.name}",
+                        }
+                    )
             # 按修改时间降序排序
             files.sort(key=lambda x: x["modified"], reverse=True)
             return files
@@ -176,11 +192,16 @@ class ImageCache:
                 "count": len(files),
                 "total_size": total_size,
                 "total_size_mb": round(total_size / 1024 / 1024, 2),
-                "cache_dir": str(self.cache_dir)
+                "cache_dir": str(self.cache_dir),
             }
         except Exception as e:
             logger.error(f"[ImageCache] 获取统计失败: {e}")
-            return {"count": 0, "total_size": 0, "total_size_mb": 0, "cache_dir": str(self.cache_dir)}
+            return {
+                "count": 0,
+                "total_size": 0,
+                "total_size_mb": 0,
+                "cache_dir": str(self.cache_dir),
+            }
 
     async def delete_cached_image(self, filename: str) -> bool:
         """删除指定的缓存图片"""

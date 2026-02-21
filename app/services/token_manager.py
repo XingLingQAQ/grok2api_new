@@ -11,6 +11,7 @@ from app.core.storage import storage_manager
 @dataclass
 class TokenInfo:
     """Token 信息"""
+
     token: str
     name: str
     enabled: bool
@@ -112,13 +113,15 @@ class TokenManager:
             created_at=time.time(),
             last_used=0,
             request_count=0,
-            failure_count=0
+            failure_count=0,
         )
 
         logger.info(f"[TokenManager] 添加 Token: {name}")
         await self._save()
 
-    async def add_tokens_batch(self, tokens: List[str], name: str = "", enabled: bool = True) -> dict:
+    async def add_tokens_batch(
+        self, tokens: List[str], name: str = "", enabled: bool = True
+    ) -> dict:
         """批量添加 Token（去重 + 单次保存）
 
         Args:
@@ -161,13 +164,15 @@ class TokenManager:
                 created_at=now,
                 last_used=0,
                 request_count=0,
-                failure_count=0
+                failure_count=0,
             )
             added += 1
 
         if added > 0:
             await self._save()
-            logger.info(f"[TokenManager] 批量添加 {added} 个 Token（重复 {duplicates}，空 {empty}）")
+            logger.info(
+                f"[TokenManager] 批量添加 {added} 个 Token（重复 {duplicates}，空 {empty}）"
+            )
 
         return {"added": added, "duplicates": duplicates, "empty": empty}
 
@@ -175,7 +180,9 @@ class TokenManager:
         """列出所有 Token（按创建时间排序）"""
         return sorted(self.tokens.values(), key=lambda t: t.created_at)
 
-    async def update_token(self, token: str, *, name: Optional[str] = None, enabled: Optional[bool] = None) -> bool:
+    async def update_token(
+        self, token: str, *, name: Optional[str] = None, enabled: Optional[bool] = None
+    ) -> bool:
         """更新 Token 元数据（名称/启用状态）"""
         token = (token or "").strip()
         if not token:
@@ -233,20 +240,29 @@ class TokenManager:
 
         # 获取所有可用的 Token（启用、未冷却、未排除）
         available_tokens = [
-            info for info in self.tokens.values()
+            info
+            for info in self.tokens.values()
             if info.enabled and info.cooldown_until <= now and info.token not in exclude
         ]
 
         if not available_tokens:
             # 检查是否所有 Token 都在冷却或被排除
-            all_enabled = [info for info in self.tokens.values() if info.enabled and info.token not in exclude]
+            all_enabled = [
+                info
+                for info in self.tokens.values()
+                if info.enabled and info.token not in exclude
+            ]
             if all_enabled:
                 # 找出最快解除冷却的 Token
                 soonest = min(all_enabled, key=lambda t: t.cooldown_until)
                 wait_time = int(soonest.cooldown_until - now)
-                logger.warning(f"[TokenManager] 所有 Token 都在冷却中，最快 {wait_time}秒 后解除")
+                logger.warning(
+                    f"[TokenManager] 所有 Token 都在冷却中，最快 {wait_time}秒 后解除"
+                )
             elif exclude:
-                logger.warning(f"[TokenManager] 没有更多可用的 Token（已排除 {len(exclude)} 个）")
+                logger.warning(
+                    f"[TokenManager] 没有更多可用的 Token（已排除 {len(exclude)} 个）"
+                )
             else:
                 logger.error("[TokenManager] 没有可用的 Token")
             return None
@@ -274,7 +290,9 @@ class TokenManager:
             # 后台异步刷新额度（不阻塞响应）
             asyncio.create_task(self._refresh_token_quota_bg(token))
 
-    async def record_failure(self, token: str, error_type: str = "normal", has_quota: bool = True):
+    async def record_failure(
+        self, token: str, error_type: str = "normal", has_quota: bool = True
+    ):
         """记录失败并可能触发冷却
 
         Args:
@@ -304,7 +322,9 @@ class TokenManager:
                 info.cooldown_until = now + COOLDOWN_429_NO_QUOTA
                 info.cooldown_reason = "429限流（无额度）"
                 info.remaining_queries = 0
-                logger.warning(f"[TokenManager] Token {info.name} 触发 429（无额度），冷却10小时")
+                logger.warning(
+                    f"[TokenManager] Token {info.name} 触发 429（无额度），冷却10小时"
+                )
         elif error_type == "auth":
             # 认证失败，禁用 Token
             info.enabled = False
@@ -314,7 +334,9 @@ class TokenManager:
             # 连续失败5次：1小时
             info.cooldown_until = now + COOLDOWN_NORMAL_ERROR
             info.cooldown_reason = f"连续失败{info.consecutive_failures}次"
-            logger.warning(f"[TokenManager] Token {info.name} 连续失败{info.consecutive_failures}次，冷却1小时")
+            logger.warning(
+                f"[TokenManager] Token {info.name} 连续失败{info.consecutive_failures}次，冷却1小时"
+            )
 
         await self._save()
 
@@ -345,18 +367,14 @@ class TokenManager:
                 info.remaining_queries = new_remaining
                 info.last_check = time.time()
                 if old_remaining != new_remaining:
-                    logger.info(f"[TokenManager] 后台额度更新: {info.name} {old_remaining} -> {new_remaining}")
+                    logger.info(
+                        f"[TokenManager] 后台额度更新: {info.name} {old_remaining} -> {new_remaining}"
+                    )
                     await self._save()
         except Exception as e:
             logger.debug(f"[TokenManager] 后台额度检查失败: {e}")
         finally:
             self._pending_quota_checks.discard(token)
-
-    async def update_remaining_queries(self, token: str, remaining: int):
-        """更新剩余查询次数"""
-        if token in self.tokens:
-            self.tokens[token].remaining_queries = remaining
-            self.tokens[token].last_check = time.time()
 
     async def test_token(self, token: str) -> dict:
         """测试 Token 可用性并获取剩余额度"""
@@ -384,9 +402,11 @@ class TokenManager:
                 "enabled": info.enabled,
                 "in_cooldown": self.is_in_cooldown(token),
                 "cooldown_remaining": self.get_cooldown_remaining(token),
-                "remaining_queries": result.get("remaining_queries", info.remaining_queries),
+                "remaining_queries": result.get(
+                    "remaining_queries", info.remaining_queries
+                ),
                 "account_type": account_type,
-                "error": result.get("error")
+                "error": result.get("error"),
             }
         except Exception as e:
             logger.error(f"[TokenManager] 测试 Token 失败: {e}")
@@ -394,7 +414,7 @@ class TokenManager:
                 "success": False,
                 "token": token[:12] + "...",
                 "name": info.name,
-                "error": str(e)
+                "error": str(e),
             }
 
     async def _check_rate_limits(self, token: str) -> dict:
@@ -415,7 +435,11 @@ class TokenManager:
                 cookie = token
             headers["Cookie"] = cookie
 
-            proxies = {"http": settings.proxy_url, "https": settings.proxy_url} if settings.proxy_url else None
+            proxies = (
+                {"http": settings.proxy_url, "https": settings.proxy_url}
+                if settings.proxy_url
+                else None
+            )
 
             async with AsyncSession(impersonate="chrome120") as session:
                 # 检测 Chat 额度（基础模型 grok-3）
@@ -425,26 +449,35 @@ class TokenManager:
                     headers=headers,
                     json=payload,
                     timeout=30,
-                    proxies=proxies
+                    proxies=proxies,
                 )
 
                 if response.status_code == 200:
                     data = response.json()
                     chat_remaining = data.get("remainingTokens", -1)
                     logger.info(f"[TokenManager] Chat 额度: {chat_remaining}")
-                    return {
-                        "success": True,
-                        "remaining_queries": chat_remaining
-                    }
+                    return {"success": True, "remaining_queries": chat_remaining}
                 elif response.status_code == 401:
                     logger.warning(f"[TokenManager] Token 无效: 401")
-                    return {"success": False, "error": "Token 无效或已过期", "remaining_queries": 0}
+                    return {
+                        "success": False,
+                        "error": "Token 无效或已过期",
+                        "remaining_queries": 0,
+                    }
                 elif response.status_code == 429:
                     logger.warning(f"[TokenManager] 请求限流: 429")
-                    return {"success": False, "error": "请求过于频繁", "remaining_queries": -1}
+                    return {
+                        "success": False,
+                        "error": "请求过于频繁",
+                        "remaining_queries": -1,
+                    }
                 else:
                     logger.warning(f"[TokenManager] 检测失败: {response.status_code}")
-                    return {"success": False, "error": f"HTTP {response.status_code}", "remaining_queries": -1}
+                    return {
+                        "success": False,
+                        "error": f"HTTP {response.status_code}",
+                        "remaining_queries": -1,
+                    }
 
         except Exception as e:
             logger.error(f"[TokenManager] 检测请求异常: {e}")
@@ -467,14 +500,15 @@ class TokenManager:
                 cookie = token
             headers["Cookie"] = cookie
 
-            proxies = {"http": settings.proxy_url, "https": settings.proxy_url} if settings.proxy_url else None
+            proxies = (
+                {"http": settings.proxy_url, "https": settings.proxy_url}
+                if settings.proxy_url
+                else None
+            )
 
             async with AsyncSession(impersonate="chrome120") as session:
                 response = await session.get(
-                    SUBSCRIPTION_API,
-                    headers=headers,
-                    timeout=30,
-                    proxies=proxies
+                    SUBSCRIPTION_API, headers=headers, timeout=30, proxies=proxies
                 )
 
                 if response.status_code == 200:
@@ -493,7 +527,9 @@ class TokenManager:
                         logger.info(f"[TokenManager] 账号类型: Free")
                         return "free"
                 else:
-                    logger.warning(f"[TokenManager] 订阅检测失败: {response.status_code}")
+                    logger.warning(
+                        f"[TokenManager] 订阅检测失败: {response.status_code}"
+                    )
                     return "unknown"
 
         except Exception as e:
@@ -506,7 +542,7 @@ class TokenManager:
             "in_progress": self._refresh_in_progress,
             "total": self._refresh_total,
             "completed": self._refresh_completed,
-            "results": self._refresh_results[-10:]  # 最近10条结果
+            "results": self._refresh_results[-10:],  # 最近10条结果
         }
 
     async def refresh_all_tokens(self) -> dict:
@@ -525,12 +561,14 @@ class TokenManager:
             for token_str, info in self.tokens.items():
                 if not info.enabled:
                     self._refresh_completed += 1
-                    self._refresh_results.append({
-                        "token": token_str[:12] + "...",
-                        "name": info.name,
-                        "status": "跳过",
-                        "reason": "已禁用"
-                    })
+                    self._refresh_results.append(
+                        {
+                            "token": token_str[:12] + "...",
+                            "name": info.name,
+                            "status": "跳过",
+                            "reason": "已禁用",
+                        }
+                    )
                 else:
                     enabled_items.append((token_str, info))
 
@@ -542,7 +580,7 @@ class TokenManager:
                     try:
                         result, account_type = await asyncio.gather(
                             self._check_rate_limits(token_str),
-                            self._check_subscription(token_str)
+                            self._check_subscription(token_str),
                         )
                         remaining = result.get("remaining_queries", -1)
                         info.account_type = account_type
@@ -551,21 +589,25 @@ class TokenManager:
                             info.remaining_queries = remaining
                             info.last_check = time.time()
 
-                        self._refresh_results.append({
-                            "token": token_str[:12] + "...",
-                            "name": info.name,
-                            "status": "成功" if result["success"] else "失败",
-                            "remaining": remaining,
-                            "account_type": account_type,
-                            "error": result.get("error")
-                        })
+                        self._refresh_results.append(
+                            {
+                                "token": token_str[:12] + "...",
+                                "name": info.name,
+                                "status": "成功" if result["success"] else "失败",
+                                "remaining": remaining,
+                                "account_type": account_type,
+                                "error": result.get("error"),
+                            }
+                        )
                     except Exception as e:
-                        self._refresh_results.append({
-                            "token": token_str[:12] + "...",
-                            "name": info.name,
-                            "status": "错误",
-                            "error": str(e)
-                        })
+                        self._refresh_results.append(
+                            {
+                                "token": token_str[:12] + "...",
+                                "name": info.name,
+                                "status": "错误",
+                                "error": str(e),
+                            }
+                        )
                     self._refresh_completed += 1
 
             await asyncio.gather(*[check_one(t, i) for t, i in enabled_items])
@@ -575,26 +617,16 @@ class TokenManager:
                 "success": True,
                 "total": self._refresh_total,
                 "completed": self._refresh_completed,
-                "results": self._refresh_results
+                "results": self._refresh_results,
             }
 
         finally:
             self._refresh_in_progress = False
 
-    async def disable_token(self, token: str):
-        """禁用 Token"""
-        if token in self.tokens:
-            self.tokens[token].enabled = False
-            logger.warning(f"[TokenManager] Token 已禁用: {self.tokens[token].name}")
-            await self._save()
-
     async def _save(self):
         """保存 Token 数据"""
         try:
-            data = {
-                token_str: asdict(info)
-                for token_str, info in self.tokens.items()
-            }
+            data = {token_str: asdict(info) for token_str, info in self.tokens.items()}
             await storage_manager.save_json("tokens.json", data)
         except Exception as e:
             logger.error(f"[TokenManager] 保存失败: {e}")
@@ -625,7 +657,7 @@ class TokenManager:
             "in_cooldown": in_cooldown,
             "chat_remaining": chat_remaining,
             "total_requests": sum(t.request_count for t in self.tokens.values()),
-            "total_failures": sum(t.failure_count for t in self.tokens.values())
+            "total_failures": sum(t.failure_count for t in self.tokens.values()),
         }
 
 

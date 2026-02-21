@@ -3,7 +3,6 @@
 import time
 from dataclasses import dataclass, asdict
 from typing import List, Optional
-from datetime import datetime
 
 from app.core.storage import storage_manager
 from app.core.logger import logger
@@ -12,6 +11,7 @@ from app.core.logger import logger
 @dataclass
 class RequestLog:
     """请求日志条目"""
+
     id: str
     timestamp: float
     model: str
@@ -36,6 +36,7 @@ class RequestLogger:
     def max_logs(self) -> int:
         """从配置读取日志上限"""
         from app.core.config import settings
+
         return settings.max_log_entries
 
     async def init(self):
@@ -53,10 +54,12 @@ class RequestLogger:
 
         # 只保留最新的
         if len(self.logs) > self.max_logs:
-            self.logs = self.logs[-self.max_logs:]
+            self.logs = self.logs[-self.max_logs :]
 
         self.initialized = True
-        logger.info(f"[RequestLogger] 已加载 {len(self.logs)} 条日志（上限 {self.max_logs}）")
+        logger.info(
+            f"[RequestLogger] 已加载 {len(self.logs)} 条日志（上限 {self.max_logs}）"
+        )
 
     async def log(
         self,
@@ -67,7 +70,7 @@ class RequestLogger:
         error: Optional[str],
         duration_ms: int,
         ip: Optional[str],
-        stream: bool
+        stream: bool,
     ):
         """记录请求"""
         self._counter += 1
@@ -99,14 +102,15 @@ class RequestLogger:
             error=error,
             duration_ms=duration_ms,
             ip=ip,
-            stream=stream
+            stream=stream,
         )
 
         self.logs.append(log_entry)
 
         # 超过最大数量时删除旧的
         if len(self.logs) > self.max_logs:
-            self.logs = self.logs[-self.max_logs:]
+            overflow = len(self.logs) - self.max_logs
+            del self.logs[:overflow]
 
     async def save(self):
         """保存日志"""
@@ -118,8 +122,17 @@ class RequestLogger:
 
     def get_logs(self, limit: int = 100, offset: int = 0) -> List[dict]:
         """获取日志（倒序）"""
-        sorted_logs = sorted(self.logs, key=lambda x: x.timestamp, reverse=True)
-        return [asdict(log) for log in sorted_logs[offset:offset + limit]]
+        if limit <= 0:
+            return []
+        if offset < 0:
+            offset = 0
+        end = len(self.logs) - offset
+        if end <= 0:
+            return []
+        start = max(0, end - limit)
+        selected = self.logs[start:end]
+        selected.reverse()
+        return [asdict(log) for log in selected]
 
     def get_total(self) -> int:
         """获取总数"""
